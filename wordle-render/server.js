@@ -68,9 +68,9 @@ app.all('/api/wordle', async (req, res) => {
   console.log('Body:', req.body);
   console.log('====================');
 
-  const { action, guess } = { ...req.query, ...req.body };
+  const { action, guess, pin, alexaUserId } = { ...req.query, ...req.body };
   const uid = req.uid;
-  const alexaUserId = req.isAlexa ? req.uid : null;
+  const alexaUserIdParam = req.isAlexa ? req.uid : null;
 
   let result = { success: false, error: 'Acción no válida' };
 
