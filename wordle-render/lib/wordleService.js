@@ -1,75 +1,59 @@
 const { db } = require('./firebase');
 
-// Cache para las palabras
 let PALABRAS_CACHE = [];
 let PALABRAS_LOADED = false;
 
 class WordleService {
-  
-  // Cargar palabras desde Firestore
+
+  // ===== Palabras =====
   async loadPalabrasFromFirestore() {
-    if (PALABRAS_LOADED && PALABRAS_CACHE.length > 0) {
-      return PALABRAS_CACHE;
-    }
-    
+    if (PALABRAS_LOADED && PALABRAS_CACHE.length > 0) return PALABRAS_CACHE;
     try {
       console.log('Cargando palabras desde Firestore...');
       const palabrasRef = db.collection('palabras');
       const snapshot = await palabrasRef.get();
-      
-      PALABRAS_CACHE = [];
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        if (data.palabra && data.palabra.length === 5) {
-          PALABRAS_CACHE.push(data.palabra.toUpperCase());
-        }
-      });
-      
+
+      PALABRAS_CACHE = snapshot.docs
+        .map(doc => doc.data().palabra?.toUpperCase())
+        .filter(p => p && p.length === 5);
+
       PALABRAS_LOADED = true;
-      console.log(`Cargadas ${PALABRAS_CACHE.length} palabras desde Firestore`);
-      
+      console.log(`Cargadas ${PALABRAS_CACHE.length} palabras`);
       return PALABRAS_CACHE;
     } catch (error) {
-      console.error('Error cargando palabras desde Firestore:', error);
-      // Fallback a una lista mínima si falla
+      console.error('Error cargando palabras:', error);
       PALABRAS_CACHE = ["PLATO", "PRADO", "PLACA", "BRAZO", "CAMPO"];
       return PALABRAS_CACHE;
     }
   }
 
-  // Obtener palabra aleatoria
   async getRandomWord() {
     const palabras = await this.loadPalabrasFromFirestore();
     return palabras[Math.floor(Math.random() * palabras.length)];
   }
 
-  // Validar palabra
   async isValidWord(word) {
     const palabras = await this.loadPalabrasFromFirestore();
     return palabras.includes(word.toUpperCase());
   }
 
-  // Generar feedback para el intento
+  // ===== Lógica juego =====
   generateFeedback(guess, targetWord) {
     const feedback = [];
     const target = targetWord.toUpperCase();
     const attempt = guess.toUpperCase();
-    
-    // Primera pasada: marcar posiciones correctas
-    const targetLetters = target.split('');
-    const usedPositions = new Array(5).fill(false);
-    
+    const usedPositions = Array(5).fill(false);
+
+    // posiciones correctas
     for (let i = 0; i < 5; i++) {
       if (attempt[i] === target[i]) {
         feedback[i] = { letter: attempt[i], status: 'correct_pos' };
         usedPositions[i] = true;
       }
     }
-    
-    // Segunda pasada: marcar letras correctas en posición incorrecta
+    // letras correctas en lugar incorrecto
     for (let i = 0; i < 5; i++) {
-      if (feedback[i]) continue; // Ya procesada
-      
+      if (feedback[i]) continue;
       let found = false;
       for (let j = 0; j < 5; j++) {
         if (!usedPositions[j] && attempt[i] === target[j] && i !== j) {
@@ -79,21 +63,17 @@ class WordleService {
           break;
         }
       }
-      
-      if (!found) {
-        feedback[i] = { letter: attempt[i], status: 'not_in_word' };
-      }
+      if (!found) feedback[i] = { letter: attempt[i], status: 'not_in_word' };
     }
-    
     return feedback;
   }
 
-  // Guardar juego completado en el historial
   async saveGameToHistory(gameData) {
     try {
       const historyRef = db.collection('gameHistory');
       const historyData = {
-        userId: gameData.userId,
+        uid: gameData.uid,
+        alexaUserId: gameData.alexaUserId || null,
         targetWord: gameData.targetWord,
         isWon: gameData.isWon,
         isLost: gameData.isLost,
@@ -103,7 +83,6 @@ class WordleService {
         completedAt: new Date(),
         gameStartedAt: gameData.createdAt
       };
-      
       await historyRef.add(historyData);
       console.log('Juego guardado en historial:', historyData);
     } catch (error) {
@@ -111,29 +90,22 @@ class WordleService {
     }
   }
 
-  // Iniciar juego
-  async startGame(userId) {
+  async startGame(uid, alexaUserId = null) {
     try {
-      // Buscar juego actual
-      const gameRef = db.collection('games').doc(userId);
+      const gameRef = db.collection('games').doc(uid);
       const gameDoc = await gameRef.get();
-      
+
       if (gameDoc.exists) {
         const gameData = gameDoc.data();
-        // Si el juego no ha terminado, devolverlo
         if (!gameData.isWon && !gameData.isLost) {
-          return {
-            success: true,
-            game: gameData,
-            message: 'Juego actual recuperado'
-          };
+          return { success: true, game: gameData, message: 'Juego actual recuperado' };
         }
       }
-      
-      // Crear nuevo juego
+
       const randomWord = await this.getRandomWord();
       const newGame = {
-        userId: userId,
+        uid,
+        alexaUserId,
         targetWord: randomWord,
         attempts: [],
         attemptsLeft: 6,
@@ -142,146 +114,82 @@ class WordleService {
         createdAt: new Date(),
         updatedAt: new Date()
       };
-      
+
       await gameRef.set(newGame);
-      
-      // No devolver la palabra objetivo
       const responseGame = { ...newGame };
       delete responseGame.targetWord;
-      
-      return {
-        success: true,
-        game: responseGame,
-        message: 'Nuevo juego iniciado'
-      };
-      
+
+      return { success: true, game: responseGame, message: 'Nuevo juego iniciado' };
     } catch (error) {
       console.error('Error starting game:', error);
-      return {
-        success: false,
-        error: 'Error al iniciar el juego'
-      };
+      return { success: false, error: 'Error al iniciar el juego' };
     }
   }
 
-  // Procesar intento
-  async guessWord(userId, guess) {
+  async guessWord(uid, guess) {
     try {
       if (!guess || guess.length !== 5) {
-        return {
-          success: false,
-          error: 'La palabra debe tener exactamente 5 letras'
-        };
+        return { success: false, error: 'La palabra debe tener exactamente 5 letras' };
       }
-
       if (!await this.isValidWord(guess)) {
-        return {
-          success: false,
-          error: 'Palabra no válida'
-        };
+        return { success: false, error: 'Palabra no válida' };
       }
 
-      const gameRef = db.collection('games').doc(userId);
+      const gameRef = db.collection('games').doc(uid);
       const gameDoc = await gameRef.get();
-      
-      if (!gameDoc.exists) {
-        return {
-          success: false,
-          error: 'No hay juego activo. Inicia un nuevo juego.'
-        };
-      }
-      
+      if (!gameDoc.exists) return { success: false, error: 'No hay juego activo.' };
+
       const gameData = gameDoc.data();
-      
-      if (gameData.isWon || gameData.isLost) {
-        return {
-          success: false,
-          error: 'El juego ya ha terminado'
-        };
-      }
-      
-      if (gameData.attemptsLeft <= 0) {
-        return {
-          success: false,
-          error: 'No quedan intentos'
-        };
-      }
-      
-      // Generar feedback
+      if (gameData.isWon || gameData.isLost) return { success: false, error: 'El juego ya ha terminado' };
+      if (gameData.attemptsLeft <= 0) return { success: false, error: 'No quedan intentos' };
+
       const feedback = this.generateFeedback(guess, gameData.targetWord);
       const isWon = guess.toUpperCase() === gameData.targetWord.toUpperCase();
       const newAttemptsLeft = gameData.attemptsLeft - 1;
       const isLost = !isWon && newAttemptsLeft <= 0;
-      
-      // Actualizar juego
+
       const updatedGame = {
         ...gameData,
         attempts: [...gameData.attempts, { guess: guess.toUpperCase(), feedback }],
         attemptsLeft: newAttemptsLeft,
-        isWon: isWon,
-        isLost: isLost,
+        isWon,
+        isLost,
         updatedAt: new Date()
       };
-      
       await gameRef.update(updatedGame);
-      
-      // Si el juego terminó, guardarlo en el historial
-      if (isWon || isLost) {
-        await this.saveGameToHistory(updatedGame);
-      }
-      
-      // Preparar respuesta
+
+      if (isWon || isLost) await this.saveGameToHistory(updatedGame);
+
       const response = {
         success: true,
-        feedback: feedback,
+        feedback,
         attemptsLeft: newAttemptsLeft,
-        isWon: isWon,
-        isLost: isLost,
-        attempts: updatedGame.attempts
+        isWon,
+        isLost,
+        attempts: updatedGame.attempts,
+        message: isWon ? `¡Ganaste! Palabra: ${gameData.targetWord}` :
+                 isLost ? `¡Perdiste! Palabra: ${gameData.targetWord}` :
+                 `Te quedan ${newAttemptsLeft} intentos`,
+        gameStatus: isWon ? 'won' : isLost ? 'lost' : 'playing'
       };
-      
-      if (isWon) {
-        response.message = `¡Felicidades! Has ganado el juego. La palabra era: ${gameData.targetWord}`;
-        response.gameStatus = 'won';
-      } else if (isLost) {
-        response.message = `¡Game Over! Se acabaron los intentos. La palabra era: ${gameData.targetWord}`;
-        response.gameStatus = 'lost';
-      } else {
-        response.message = `Te quedan ${newAttemptsLeft} intentos`;
-        response.gameStatus = 'playing';
-      }
-      
-      if (isWon || isLost) {
-        response.targetWord = gameData.targetWord;
-      }
-      
+      if (isWon || isLost) response.targetWord = gameData.targetWord;
       return response;
-      
+
     } catch (error) {
       console.error('Error processing guess:', error);
-      return {
-        success: false,
-        error: 'Error al procesar el intento'
-      };
+      return { success: false, error: 'Error al procesar el intento' };
     }
   }
 
-  // Obtener juego actual
-  async getCurrentGame(userId) {
+  async getCurrentGame(uid) {
     try {
-      const gameRef = db.collection('games').doc(userId);
+      const gameRef = db.collection('games').doc(uid);
       const gameDoc = await gameRef.get();
-      
-      if (!gameDoc.exists) {
-        return {
-          success: false,
-          error: 'No hay juego activo'
-        };
-      }
-      
+      if (!gameDoc.exists) return { success: false, error: 'No hay juego activo' };
+
       const gameData = gameDoc.data();
       const responseGame = { ...gameData };
-      
+
       if (gameData.isWon) {
         responseGame.message = `¡Juego ganado! La palabra era: ${gameData.targetWord}`;
         responseGame.gameStatus = 'won';
@@ -289,61 +197,40 @@ class WordleService {
         responseGame.message = `¡Juego perdido! La palabra era: ${gameData.targetWord}`;
         responseGame.gameStatus = 'lost';
       } else {
-        responseGame.message = `Juego en progreso. Te quedan ${gameData.attemptsLeft} intentos`;
+        responseGame.message = `Juego en progreso. Intentos restantes: ${gameData.attemptsLeft}`;
         responseGame.gameStatus = 'playing';
         delete responseGame.targetWord;
       }
-      
-      return {
-        success: true,
-        game: responseGame
-      };
-      
+      return { success: true, game: responseGame };
+
     } catch (error) {
       console.error('Error getting current game:', error);
-      return {
-        success: false,
-        error: 'Error al obtener el juego actual'
-      };
+      return { success: false, error: 'Error al obtener el juego actual' };
     }
   }
 
-  // Reiniciar juego
-  async resetGame(userId) {
+  async resetGame(uid) {
     try {
-      const gameRef = db.collection('games').doc(userId);
+      const gameRef = db.collection('games').doc(uid);
       await gameRef.delete();
-      
-      return await this.startGame(userId);
-      
+      return await this.startGame(uid);
     } catch (error) {
       console.error('Error resetting game:', error);
-      return {
-        success: false,
-        error: 'Error al reiniciar el juego'
-      };
+      return { success: false, error: 'Error al reiniciar el juego' };
     }
   }
 
-  // Calcular rachas y estadísticas
-  async calculateCurrentStreak(userId) {
+  // ===== Estadísticas =====
+  async calculateCurrentStreak(uid) {
     try {
-      const historyRef = db.collection('gameHistory')
-        .where('userId', '==', userId)
-        .orderBy('completedAt', 'desc');
-      
+      const historyRef = db.collection('gameHistory').where('uid', '==', uid).orderBy('completedAt', 'desc');
       const snapshot = await historyRef.get();
       let currentStreak = 0;
-      
-      snapshot.forEach(doc => {
+      for (const doc of snapshot.docs) {
         const game = doc.data();
-        if (game.isWon) {
-          currentStreak++;
-        } else {
-          return false; // Romper el bucle
-        }
-      });
-      
+        if (game.isWon) currentStreak++;
+        else break;
+      }
       return currentStreak;
     } catch (error) {
       console.error('Error calculating current streak:', error);
@@ -351,26 +238,18 @@ class WordleService {
     }
   }
 
-  async calculateMaxStreak(userId) {
+  async calculateMaxStreak(uid) {
     try {
-      const historyRef = db.collection('gameHistory')
-        .where('userId', '==', userId)
-        .orderBy('completedAt', 'asc');
-      
+      const historyRef = db.collection('gameHistory').where('uid', '==', uid).orderBy('completedAt', 'asc');
       const snapshot = await historyRef.get();
-      let maxStreak = 0;
-      let currentStreak = 0;
-      
-      snapshot.forEach(doc => {
+      let maxStreak = 0, currentStreak = 0;
+      for (const doc of snapshot.docs) {
         const game = doc.data();
         if (game.isWon) {
           currentStreak++;
           maxStreak = Math.max(maxStreak, currentStreak);
-        } else {
-          currentStreak = 0;
-        }
-      });
-      
+        } else currentStreak = 0;
+      }
       return maxStreak;
     } catch (error) {
       console.error('Error calculating max streak:', error);
@@ -378,32 +257,27 @@ class WordleService {
     }
   }
 
-  // Obtener estadísticas del usuario
-  async getUserStats(userId) {
+  async getUserStats(uid) {
     try {
-      const historyRef = db.collection('gameHistory').where('userId', '==', userId);
+      const historyRef = db.collection('gameHistory').where('uid', '==', uid);
       const historySnapshot = await historyRef.get();
-      
-      let totalGames = 0;
-      let wins = 0;
+
+      let totalGames = 0, wins = 0;
       const attemptDistribution = [0, 0, 0, 0, 0, 0];
-      
+
       historySnapshot.forEach(doc => {
         const game = doc.data();
         totalGames++;
-        
         if (game.isWon) {
           wins++;
           const attemptsUsed = game.attemptsUsed || (6 - game.attemptsLeft);
-          if (attemptsUsed >= 1 && attemptsUsed <= 6) {
-            attemptDistribution[attemptsUsed - 1]++;
-          }
+          if (attemptsUsed >= 1 && attemptsUsed <= 6) attemptDistribution[attemptsUsed - 1]++;
         }
       });
-      
-      const currentStreak = await this.calculateCurrentStreak(userId);
-      const maxStreak = await this.calculateMaxStreak(userId);
-      
+
+      const currentStreak = await this.calculateCurrentStreak(uid);
+      const maxStreak = await this.calculateMaxStreak(uid);
+
       return {
         success: true,
         stats: {
@@ -414,16 +288,14 @@ class WordleService {
           currentStreak,
           maxStreak,
           attemptDistribution,
-          averageAttempts: wins > 0 ? Math.round(attemptDistribution.reduce((sum, count, index) => sum + (count * (index + 1)), 0) / wins * 10) / 10 : 0
+          averageAttempts: wins > 0
+            ? Math.round(attemptDistribution.reduce((sum, count, index) => sum + (count * (index + 1)), 0) / wins * 10) / 10
+            : 0
         }
       };
-      
     } catch (error) {
       console.error('Error getting user stats:', error);
-      return {
-        success: false,
-        error: 'Error al obtener estadísticas: ' + error.message
-      };
+      return { success: false, error: 'Error al obtener estadísticas: ' + error.message };
     }
   }
 }
