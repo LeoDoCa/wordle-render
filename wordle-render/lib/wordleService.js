@@ -79,7 +79,7 @@ class WordleService {
       });
 
       const historyRef = db.collection('gameHistory');
-      
+
       // Calcular intentos usados de forma más robusta
       let attemptsUsed = 0;
       if (gameData.attemptsLeft !== undefined) {
@@ -105,7 +105,7 @@ class WordleService {
 
       const docRef = await historyRef.add(historyData);
       console.log('Juego guardado en historial con ID:', docRef.id);
-      
+
       return { success: true, historyId: docRef.id };
     } catch (error) {
       console.error('Error guardando juego en historial:', error);
@@ -191,8 +191,8 @@ class WordleService {
         isLost,
         attempts: updatedGame.attempts,
         message: isWon ? `¡Ganaste! Palabra: ${gameData.targetWord}` :
-                 isLost ? `¡Perdiste! Palabra: ${gameData.targetWord}` :
-                 `Te quedan ${newAttemptsLeft} intentos`,
+          isLost ? `¡Perdiste! Palabra: ${gameData.targetWord}` :
+            `Te quedan ${newAttemptsLeft} intentos`,
         gameStatus: isWon ? 'won' : isLost ? 'lost' : 'playing'
       };
       if (isWon || isLost) response.targetWord = gameData.targetWord;
@@ -208,14 +208,14 @@ class WordleService {
     try {
       // Verificar si hay vinculación Alexa
       const linkDoc = await db.collection('linkedAccounts')
-                            .where('firebaseUid', '==', uid)
-                            .limit(1)
-                            .get();
-      
+        .where('firebaseUid', '==', uid)
+        .limit(1)
+        .get();
+
       let gameUid = uid;
       let isLinkedToAlexa = false;
       let linkInfo = null;
-      
+
       if (!linkDoc.empty) {
         const link = linkDoc.docs[0].data();
         gameUid = link.alexaUserId; // usar la partida de Alexa
@@ -228,10 +228,11 @@ class WordleService {
 
       const gameRef = db.collection('games').doc(gameUid);
       const gameDoc = await gameRef.get();
-      
+
       if (!gameDoc.exists) {
-        return { 
-          success: false, 
+        return {
+          success: false,
+          game: null,
           error: 'No hay juego activo',
           isLinkedToAlexa,
           linkInfo
@@ -295,10 +296,10 @@ class WordleService {
 
       // Si es un Firebase UID, verificar si hay vinculación
       const linkDoc = await db.collection('linkedAccounts')
-                            .where('firebaseUid', '==', uid)
-                            .limit(1)
-                            .get();
-      
+        .where('firebaseUid', '==', uid)
+        .limit(1)
+        .get();
+
       if (!linkDoc.empty) {
         const link = linkDoc.docs[0].data();
         return link.alexaUserId; // usar el alexaUserId para las estadísticas
@@ -316,14 +317,14 @@ class WordleService {
     try {
       const effectiveUid = await this.getEffectiveUid(uid);
       console.log(`Calculando current streak para UID: ${uid} -> effectiveUid: ${effectiveUid}`);
-      
+
       const historyRef = db.collection('gameHistory')
-                          .where('uid', '==', effectiveUid)
-                          .orderBy('completedAt', 'desc')
-                          .limit(50); // Limitar para optimizar
-      
+        .where('uid', '==', effectiveUid)
+        .orderBy('completedAt', 'desc')
+        .limit(50); // Limitar para optimizar
+
       const snapshot = await historyRef.get();
-      
+
       if (snapshot.empty) {
         console.log('No hay historial de juegos');
         return 0;
@@ -333,14 +334,14 @@ class WordleService {
       for (const doc of snapshot.docs) {
         const game = doc.data();
         console.log(`Juego: isWon=${game.isWon}, completedAt=${game.completedAt?.toDate()}`);
-        
+
         if (game.isWon) {
           currentStreak++;
         } else {
           break; // Se rompe la racha en el primer juego perdido
         }
       }
-      
+
       console.log(`Current streak calculado: ${currentStreak}`);
       return currentStreak;
     } catch (error) {
@@ -353,13 +354,13 @@ class WordleService {
     try {
       const effectiveUid = await this.getEffectiveUid(uid);
       console.log(`Calculando max streak para UID: ${uid} -> effectiveUid: ${effectiveUid}`);
-      
+
       const historyRef = db.collection('gameHistory')
-                          .where('uid', '==', effectiveUid)
-                          .orderBy('completedAt', 'asc');
-      
+        .where('uid', '==', effectiveUid)
+        .orderBy('completedAt', 'asc');
+
       const snapshot = await historyRef.get();
-      
+
       if (snapshot.empty) {
         console.log('No hay historial de juegos para max streak');
         return 0;
@@ -367,7 +368,7 @@ class WordleService {
 
       let maxStreak = 0;
       let currentStreak = 0;
-      
+
       for (const doc of snapshot.docs) {
         const game = doc.data();
         if (game.isWon) {
@@ -377,7 +378,7 @@ class WordleService {
           currentStreak = 0; // Reiniciar racha
         }
       }
-      
+
       console.log(`Max streak calculado: ${maxStreak}`);
       return maxStreak;
     } catch (error) {
@@ -390,7 +391,7 @@ class WordleService {
     try {
       const effectiveUid = await this.getEffectiveUid(uid);
       console.log(`Obteniendo estadísticas para UID: ${uid} -> effectiveUid: ${effectiveUid}`);
-      
+
       const historyRef = db.collection('gameHistory').where('uid', '==', effectiveUid);
       const historySnapshot = await historyRef.get();
 
@@ -420,12 +421,12 @@ class WordleService {
       historySnapshot.forEach(doc => {
         const game = doc.data();
         totalGames++;
-        
+
         if (game.isWon) {
           wins++;
           // Calcular intentos usados
           let attemptsUsed = game.attemptsUsed;
-          
+
           // Fallback si no existe attemptsUsed
           if (!attemptsUsed) {
             if (game.attemptsLeft !== undefined) {
@@ -436,7 +437,7 @@ class WordleService {
               attemptsUsed = 1; // fallback por defecto
             }
           }
-          
+
           // Asegurar que esté en rango válido
           if (attemptsUsed >= 1 && attemptsUsed <= 6) {
             attemptDistribution[attemptsUsed - 1]++;
@@ -450,10 +451,10 @@ class WordleService {
 
       // Calcular promedio de intentos
       const totalSuccessfulAttempts = attemptDistribution.reduce(
-        (sum, count, index) => sum + (count * (index + 1)), 
+        (sum, count, index) => sum + (count * (index + 1)),
         0
       );
-      const averageAttempts = wins > 0 
+      const averageAttempts = wins > 0
         ? Math.round((totalSuccessfulAttempts / wins) * 10) / 10
         : 0;
 
@@ -478,9 +479,9 @@ class WordleService {
       };
     } catch (error) {
       console.error('Error getting user stats:', error);
-      return { 
-        success: false, 
-        error: 'Error al obtener estadísticas: ' + error.message 
+      return {
+        success: false,
+        error: 'Error al obtener estadísticas: ' + error.message
       };
     }
   }
@@ -490,14 +491,14 @@ class WordleService {
     try {
       const effectiveUid = await this.getEffectiveUid(uid);
       console.log(`=== DEBUG HISTORY para ${uid} -> ${effectiveUid} ===`);
-      
+
       const historyRef = db.collection('gameHistory')
-                          .where('uid', '==', effectiveUid)
-                          .orderBy('completedAt', 'desc')
-                          .limit(10);
-      
+        .where('uid', '==', effectiveUid)
+        .orderBy('completedAt', 'desc')
+        .limit(10);
+
       const snapshot = await historyRef.get();
-      
+
       const games = [];
       snapshot.forEach(doc => {
         const game = doc.data();
@@ -512,10 +513,10 @@ class WordleService {
           targetWord: game.targetWord
         });
       });
-      
+
       console.log('Últimos 10 juegos:', games);
       console.log('===============================');
-      
+
       return {
         success: true,
         effectiveUid,
@@ -533,9 +534,9 @@ class WordleService {
     try {
       // Verificar si ya hay un PIN activo para este usuario
       const existingPinsQuery = await db.collection('linkPins')
-                                      .where('firebaseUid', '==', firebaseUid)
-                                      .get();
-      
+        .where('firebaseUid', '==', firebaseUid)
+        .get();
+
       // Eliminar PINs existentes del usuario
       if (!existingPinsQuery.empty) {
         const batch = db.batch();
@@ -597,9 +598,9 @@ class WordleService {
 
       // Verificar si ya existe una vinculación para este Alexa User
       const existingLinkQuery = await db.collection('linkedAccounts')
-                                      .where('alexaUserId', '==', alexaUserId)
-                                      .limit(1)
-                                      .get();
+        .where('alexaUserId', '==', alexaUserId)
+        .limit(1)
+        .get();
 
       if (!existingLinkQuery.empty) {
         // Actualizar vinculación existente
@@ -638,8 +639,8 @@ class WordleService {
     try {
       // Buscar vinculaciones por Firebase UID
       const linkQuery = await db.collection('linkedAccounts')
-                              .where('firebaseUid', '==', firebaseUid)
-                              .get();
+        .where('firebaseUid', '==', firebaseUid)
+        .get();
 
       if (linkQuery.empty) {
         return { success: false, error: 'No hay vinculación existente' };
@@ -654,9 +655,9 @@ class WordleService {
 
       // También eliminar PINs pendientes del usuario
       const pinsQuery = await db.collection('linkPins')
-                              .where('firebaseUid', '==', firebaseUid)
-                              .get();
-      
+        .where('firebaseUid', '==', firebaseUid)
+        .get();
+
       if (!pinsQuery.empty) {
         const pinsBatch = db.batch();
         pinsQuery.docs.forEach(doc => {
@@ -678,9 +679,9 @@ class WordleService {
   async getLinkStatus(firebaseUid) {
     try {
       const linkDoc = await db.collection('linkedAccounts')
-                            .where('firebaseUid', '==', firebaseUid)
-                            .limit(1)
-                            .get();
+        .where('firebaseUid', '==', firebaseUid)
+        .limit(1)
+        .get();
 
       if (linkDoc.empty) {
         return {
@@ -709,8 +710,8 @@ class WordleService {
     try {
       const now = new Date();
       const expiredPinsQuery = await db.collection('linkPins')
-                                      .where('createdAt', '<', new Date(now.getTime() - 5 * 60 * 1000))
-                                      .get();
+        .where('createdAt', '<', new Date(now.getTime() - 5 * 60 * 1000))
+        .get();
 
       if (!expiredPinsQuery.empty) {
         const batch = db.batch();
@@ -730,297 +731,297 @@ class WordleService {
 
   // Agregar este método a tu WordleService.js
 
-async getGameHistory(uid, options = {}) {
-  try {
-    const {
-      limit = 50,
-      offset = 0,
-      sortBy = 'completedAt',
-      sortOrder = 'desc',
-      filter = 'all', // 'all', 'won', 'lost'
-      dateFrom = null,
-      dateTo = null
-    } = options;
+  async getGameHistory(uid, options = {}) {
+    try {
+      const {
+        limit = 50,
+        offset = 0,
+        sortBy = 'completedAt',
+        sortOrder = 'desc',
+        filter = 'all', // 'all', 'won', 'lost'
+        dateFrom = null,
+        dateTo = null
+      } = options;
 
-    const effectiveUid = await this.getEffectiveUid(uid);
-    console.log(`Obteniendo historial para UID: ${uid} -> effectiveUid: ${effectiveUid}`);
+      const effectiveUid = await this.getEffectiveUid(uid);
+      console.log(`Obteniendo historial para UID: ${uid} -> effectiveUid: ${effectiveUid}`);
 
-    let query = db.collection('gameHistory').where('uid', '==', effectiveUid);
+      let query = db.collection('gameHistory').where('uid', '==', effectiveUid);
 
-    // Aplicar filtros
-    if (filter === 'won') {
-      query = query.where('isWon', '==', true);
-    } else if (filter === 'lost') {
-      query = query.where('isLost', '==', true);
-    }
+      // Aplicar filtros
+      if (filter === 'won') {
+        query = query.where('isWon', '==', true);
+      } else if (filter === 'lost') {
+        query = query.where('isLost', '==', true);
+      }
 
-    // Filtros de fecha
-    if (dateFrom) {
-      query = query.where('completedAt', '>=', new Date(dateFrom));
-    }
-    if (dateTo) {
-      query = query.where('completedAt', '<=', new Date(dateTo));
-    }
+      // Filtros de fecha
+      if (dateFrom) {
+        query = query.where('completedAt', '>=', new Date(dateFrom));
+      }
+      if (dateTo) {
+        query = query.where('completedAt', '<=', new Date(dateTo));
+      }
 
-    // Ordenar
-    query = query.orderBy(sortBy, sortOrder);
+      // Ordenar
+      query = query.orderBy(sortBy, sortOrder);
 
-    // Obtener total de documentos para paginación
-    const totalSnapshot = await query.get();
-    const totalCount = totalSnapshot.size;
+      // Obtener total de documentos para paginación
+      const totalSnapshot = await query.get();
+      const totalCount = totalSnapshot.size;
 
-    // Aplicar paginación
-    if (offset > 0) {
-      query = query.offset(offset);
-    }
-    query = query.limit(limit);
+      // Aplicar paginación
+      if (offset > 0) {
+        query = query.offset(offset);
+      }
+      query = query.limit(limit);
 
-    const snapshot = await query.get();
+      const snapshot = await query.get();
 
-    if (snapshot.empty) {
+      if (snapshot.empty) {
+        return {
+          success: true,
+          games: [],
+          pagination: {
+            total: 0,
+            limit,
+            offset,
+            hasMore: false
+          },
+          summary: {
+            totalGames: 0,
+            wonGames: 0,
+            lostGames: 0,
+            winRate: 0,
+            averageAttempts: 0
+          }
+        };
+      }
+
+      const games = [];
+      let totalAttempts = 0;
+      let wonGames = 0;
+
+      snapshot.forEach(doc => {
+        const gameData = doc.data();
+
+        // Calcular intentos usados de forma robusta
+        let attemptsUsed = gameData.attemptsUsed;
+        if (!attemptsUsed) {
+          if (gameData.attemptsLeft !== undefined) {
+            attemptsUsed = 6 - gameData.attemptsLeft;
+          } else if (gameData.attempts && Array.isArray(gameData.attempts)) {
+            attemptsUsed = gameData.attempts.length;
+          } else {
+            attemptsUsed = gameData.isWon ? 1 : 6; // fallback
+          }
+        }
+
+        const game = {
+          id: doc.id,
+          targetWord: gameData.targetWord,
+          isWon: gameData.isWon,
+          isLost: gameData.isLost,
+          attemptsUsed,
+          attemptsLeft: gameData.attemptsLeft || 0,
+          attempts: gameData.attempts || [],
+          completedAt: gameData.completedAt?.toDate(),
+          gameStartedAt: gameData.gameStartedAt?.toDate(),
+          duration: this.calculateGameDuration(gameData.gameStartedAt, gameData.completedAt),
+          score: this.calculateGameScore(gameData.isWon, attemptsUsed),
+          difficulty: this.assessWordDifficulty(gameData.targetWord)
+        };
+
+        games.push(game);
+
+        // Acumular para estadísticas
+        if (gameData.isWon) {
+          wonGames++;
+          totalAttempts += attemptsUsed;
+        }
+      });
+
+      // Calcular estadísticas del historial
+      const summary = {
+        totalGames: games.length,
+        wonGames,
+        lostGames: games.length - wonGames,
+        winRate: games.length > 0 ? Math.round((wonGames / games.length) * 100) : 0,
+        averageAttempts: wonGames > 0 ? Math.round((totalAttempts / wonGames) * 10) / 10 : 0,
+        bestGame: this.findBestGame(games),
+        recentStreak: this.calculateRecentStreak(games),
+        favoriteStartingLetters: this.analyzeFavoriteLetters(games)
+      };
+
       return {
         success: true,
-        games: [],
+        games,
         pagination: {
-          total: 0,
+          total: totalCount,
           limit,
           offset,
-          hasMore: false
+          hasMore: offset + limit < totalCount,
+          currentPage: Math.floor(offset / limit) + 1,
+          totalPages: Math.ceil(totalCount / limit)
         },
-        summary: {
-          totalGames: 0,
-          wonGames: 0,
-          lostGames: 0,
-          winRate: 0,
-          averageAttempts: 0
-        }
+        summary,
+        effectiveUid,
+        isLinked: effectiveUid !== uid
+      };
+
+    } catch (error) {
+      console.error('Error getting game history:', error);
+      return {
+        success: false,
+        error: 'Error al obtener el historial: ' + error.message
       };
     }
+  }
 
-    const games = [];
-    let totalAttempts = 0;
-    let wonGames = 0;
+  // Métodos auxiliares para análisis del historial
+  calculateGameDuration(startTime, endTime) {
+    if (!startTime || !endTime) return null;
+    const diffMs = endTime.toDate().getTime() - startTime.toDate().getTime();
+    const diffMinutes = Math.round(diffMs / (1000 * 60));
+    return diffMinutes;
+  }
 
-    snapshot.forEach(doc => {
-      const gameData = doc.data();
-      
-      // Calcular intentos usados de forma robusta
-      let attemptsUsed = gameData.attemptsUsed;
-      if (!attemptsUsed) {
-        if (gameData.attemptsLeft !== undefined) {
-          attemptsUsed = 6 - gameData.attemptsLeft;
-        } else if (gameData.attempts && Array.isArray(gameData.attempts)) {
-          attemptsUsed = gameData.attempts.length;
-        } else {
-          attemptsUsed = gameData.isWon ? 1 : 6; // fallback
-        }
+  calculateGameScore(isWon, attemptsUsed) {
+    if (!isWon) return 0;
+    // Puntuación: más puntos por menos intentos
+    return Math.max(0, 60 - (attemptsUsed * 10));
+  }
+
+  assessWordDifficulty(word) {
+    if (!word) return 'unknown';
+
+    // Palabras con letras repetidas son más difíciles
+    const uniqueLetters = new Set(word.toLowerCase()).size;
+    const hasRepeatedLetters = uniqueLetters < word.length;
+
+    // Palabras con letras poco comunes
+    const commonLetters = 'aeiourlnstcdm';
+    const uncommonLetterCount = word.toLowerCase()
+      .split('')
+      .filter(letter => !commonLetters.includes(letter))
+      .length;
+
+    if (uncommonLetterCount >= 3 || hasRepeatedLetters) {
+      return 'hard';
+    } else if (uncommonLetterCount >= 1) {
+      return 'medium';
+    }
+    return 'easy';
+  }
+
+  findBestGame(games) {
+    if (!games.length) return null;
+
+    const wonGames = games.filter(g => g.isWon);
+    if (!wonGames.length) return null;
+
+    // Mejor juego: menos intentos, o más reciente si hay empate
+    return wonGames.reduce((best, current) => {
+      if (current.attemptsUsed < best.attemptsUsed) {
+        return current;
+      } else if (current.attemptsUsed === best.attemptsUsed &&
+        current.completedAt > best.completedAt) {
+        return current;
       }
-
-      const game = {
-        id: doc.id,
-        targetWord: gameData.targetWord,
-        isWon: gameData.isWon,
-        isLost: gameData.isLost,
-        attemptsUsed,
-        attemptsLeft: gameData.attemptsLeft || 0,
-        attempts: gameData.attempts || [],
-        completedAt: gameData.completedAt?.toDate(),
-        gameStartedAt: gameData.gameStartedAt?.toDate(),
-        duration: this.calculateGameDuration(gameData.gameStartedAt, gameData.completedAt),
-        score: this.calculateGameScore(gameData.isWon, attemptsUsed),
-        difficulty: this.assessWordDifficulty(gameData.targetWord)
-      };
-
-      games.push(game);
-
-      // Acumular para estadísticas
-      if (gameData.isWon) {
-        wonGames++;
-        totalAttempts += attemptsUsed;
-      }
+      return best;
     });
-
-    // Calcular estadísticas del historial
-    const summary = {
-      totalGames: games.length,
-      wonGames,
-      lostGames: games.length - wonGames,
-      winRate: games.length > 0 ? Math.round((wonGames / games.length) * 100) : 0,
-      averageAttempts: wonGames > 0 ? Math.round((totalAttempts / wonGames) * 10) / 10 : 0,
-      bestGame: this.findBestGame(games),
-      recentStreak: this.calculateRecentStreak(games),
-      favoriteStartingLetters: this.analyzeFavoriteLetters(games)
-    };
-
-    return {
-      success: true,
-      games,
-      pagination: {
-        total: totalCount,
-        limit,
-        offset,
-        hasMore: offset + limit < totalCount,
-        currentPage: Math.floor(offset / limit) + 1,
-        totalPages: Math.ceil(totalCount / limit)
-      },
-      summary,
-      effectiveUid,
-      isLinked: effectiveUid !== uid
-    };
-
-  } catch (error) {
-    console.error('Error getting game history:', error);
-    return { 
-      success: false, 
-      error: 'Error al obtener el historial: ' + error.message 
-    };
   }
-}
 
-// Métodos auxiliares para análisis del historial
-calculateGameDuration(startTime, endTime) {
-  if (!startTime || !endTime) return null;
-  const diffMs = endTime.toDate().getTime() - startTime.toDate().getTime();
-  const diffMinutes = Math.round(diffMs / (1000 * 60));
-  return diffMinutes;
-}
+  calculateRecentStreak(games) {
+    if (!games.length) return 0;
 
-calculateGameScore(isWon, attemptsUsed) {
-  if (!isWon) return 0;
-  // Puntuación: más puntos por menos intentos
-  return Math.max(0, 60 - (attemptsUsed * 10));
-}
-
-assessWordDifficulty(word) {
-  if (!word) return 'unknown';
-  
-  // Palabras con letras repetidas son más difíciles
-  const uniqueLetters = new Set(word.toLowerCase()).size;
-  const hasRepeatedLetters = uniqueLetters < word.length;
-  
-  // Palabras con letras poco comunes
-  const commonLetters = 'aeiourlnstcdm';
-  const uncommonLetterCount = word.toLowerCase()
-    .split('')
-    .filter(letter => !commonLetters.includes(letter))
-    .length;
-  
-  if (uncommonLetterCount >= 3 || hasRepeatedLetters) {
-    return 'hard';
-  } else if (uncommonLetterCount >= 1) {
-    return 'medium';
-  }
-  return 'easy';
-}
-
-findBestGame(games) {
-  if (!games.length) return null;
-  
-  const wonGames = games.filter(g => g.isWon);
-  if (!wonGames.length) return null;
-  
-  // Mejor juego: menos intentos, o más reciente si hay empate
-  return wonGames.reduce((best, current) => {
-    if (current.attemptsUsed < best.attemptsUsed) {
-      return current;
-    } else if (current.attemptsUsed === best.attemptsUsed && 
-               current.completedAt > best.completedAt) {
-      return current;
-    }
-    return best;
-  });
-}
-
-calculateRecentStreak(games) {
-  if (!games.length) return 0;
-  
-  // Juegos ya están ordenados por fecha desc
-  let streak = 0;
-  for (const game of games) {
-    if (game.isWon) {
-      streak++;
-    } else {
-      break;
-    }
-  }
-  return streak;
-}
-
-analyzeFavoriteLetters(games) {
-  const letterCount = {};
-  
-  games.forEach(game => {
-    if (game.targetWord && game.targetWord.length > 0) {
-      const firstLetter = game.targetWord[0].toUpperCase();
-      letterCount[firstLetter] = (letterCount[firstLetter] || 0) + 1;
-    }
-  });
-  
-  return Object.entries(letterCount)
-    .sort(([,a], [,b]) => b - a)
-    .slice(0, 5)
-    .map(([letter, count]) => ({ letter, count }));
-}
-
-// Método para obtener estadísticas mensuales
-async getMonthlyStats(uid, year = null, month = null) {
-  try {
-    const effectiveUid = await this.getEffectiveUid(uid);
-    const currentDate = new Date();
-    const targetYear = year || currentDate.getFullYear();
-    const targetMonth = month || currentDate.getMonth() + 1;
-    
-    const startDate = new Date(targetYear, targetMonth - 1, 1);
-    const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59);
-    
-    const query = db.collection('gameHistory')
-                   .where('uid', '==', effectiveUid)
-                   .where('completedAt', '>=', startDate)
-                   .where('completedAt', '<=', endDate)
-                   .orderBy('completedAt', 'desc');
-    
-    const snapshot = await query.get();
-    
-    const dailyStats = {};
-    let totalGames = 0;
-    let totalWins = 0;
-    
-    snapshot.forEach(doc => {
-      const game = doc.data();
-      const day = game.completedAt.toDate().getDate();
-      
-      if (!dailyStats[day]) {
-        dailyStats[day] = { games: 0, wins: 0, attempts: [] };
-      }
-      
-      dailyStats[day].games++;
-      totalGames++;
-      
+    // Juegos ya están ordenados por fecha desc
+    let streak = 0;
+    for (const game of games) {
       if (game.isWon) {
-        dailyStats[day].wins++;
-        totalWins++;
-        
-        const attemptsUsed = game.attemptsUsed || (6 - (game.attemptsLeft || 0));
-        dailyStats[day].attempts.push(attemptsUsed);
+        streak++;
+      } else {
+        break;
+      }
+    }
+    return streak;
+  }
+
+  analyzeFavoriteLetters(games) {
+    const letterCount = {};
+
+    games.forEach(game => {
+      if (game.targetWord && game.targetWord.length > 0) {
+        const firstLetter = game.targetWord[0].toUpperCase();
+        letterCount[firstLetter] = (letterCount[firstLetter] || 0) + 1;
       }
     });
-    
-    return {
-      success: true,
-      year: targetYear,
-      month: targetMonth,
-      totalGames,
-      totalWins,
-      winRate: totalGames > 0 ? Math.round((totalWins / totalGames) * 100) : 0,
-      dailyStats,
-      monthName: new Date(targetYear, targetMonth - 1).toLocaleString('es', { month: 'long' })
-    };
-    
-  } catch (error) {
-    console.error('Error getting monthly stats:', error);
-    return { success: false, error: error.message };
+
+    return Object.entries(letterCount)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5)
+      .map(([letter, count]) => ({ letter, count }));
   }
-}
+
+  // Método para obtener estadísticas mensuales
+  async getMonthlyStats(uid, year = null, month = null) {
+    try {
+      const effectiveUid = await this.getEffectiveUid(uid);
+      const currentDate = new Date();
+      const targetYear = year || currentDate.getFullYear();
+      const targetMonth = month || currentDate.getMonth() + 1;
+
+      const startDate = new Date(targetYear, targetMonth - 1, 1);
+      const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59);
+
+      const query = db.collection('gameHistory')
+        .where('uid', '==', effectiveUid)
+        .where('completedAt', '>=', startDate)
+        .where('completedAt', '<=', endDate)
+        .orderBy('completedAt', 'desc');
+
+      const snapshot = await query.get();
+
+      const dailyStats = {};
+      let totalGames = 0;
+      let totalWins = 0;
+
+      snapshot.forEach(doc => {
+        const game = doc.data();
+        const day = game.completedAt.toDate().getDate();
+
+        if (!dailyStats[day]) {
+          dailyStats[day] = { games: 0, wins: 0, attempts: [] };
+        }
+
+        dailyStats[day].games++;
+        totalGames++;
+
+        if (game.isWon) {
+          dailyStats[day].wins++;
+          totalWins++;
+
+          const attemptsUsed = game.attemptsUsed || (6 - (game.attemptsLeft || 0));
+          dailyStats[day].attempts.push(attemptsUsed);
+        }
+      });
+
+      return {
+        success: true,
+        year: targetYear,
+        month: targetMonth,
+        totalGames,
+        totalWins,
+        winRate: totalGames > 0 ? Math.round((totalWins / totalGames) * 100) : 0,
+        dailyStats,
+        monthName: new Date(targetYear, targetMonth - 1).toLocaleString('es', { month: 'long' })
+      };
+
+    } catch (error) {
+      console.error('Error getting monthly stats:', error);
+      return { success: false, error: error.message };
+    }
+  }
 }
 
 module.exports = new WordleService();
