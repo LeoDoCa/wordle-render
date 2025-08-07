@@ -22,7 +22,7 @@ app.post('/api/link/generate-pin', authMiddleware, async (req, res) => {
     }
 
     const result = await wordleService.generateLinkPin(req.uid);
-    
+
     if (result.success) {
       res.json(result);
     } else {
@@ -38,16 +38,16 @@ app.post('/api/link/generate-pin', authMiddleware, async (req, res) => {
 app.post('/api/link/validate-pin', async (req, res) => {
   try {
     const { pin, alexaUserId } = req.body;
-    
+
     if (!pin || !alexaUserId) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'PIN y alexaUserId son requeridos' 
+      return res.status(400).json({
+        success: false,
+        error: 'PIN y alexaUserId son requeridos'
       });
     }
 
     const result = await wordleService.validatePinAndLink(pin, alexaUserId);
-    
+
     if (result.success) {
       res.json(result);
     } else {
@@ -161,6 +161,34 @@ app.all('/api/wordle', async (req, res) => {
           result = { success: false, error: 'Se requiere UID' };
         }
         break;
+      case 'history':
+        if (uid) {
+          // Obtener parámetros de consulta
+          const options = {
+            limit: parseInt(req.query.limit) || 50,
+            offset: parseInt(req.query.offset) || 0,
+            sortBy: req.query.sortBy || 'completedAt',
+            sortOrder: req.query.sortOrder || 'desc',
+            filter: req.query.filter || 'all',
+            dateFrom: req.query.dateFrom || null,
+            dateTo: req.query.dateTo || null
+          };
+
+          result = await wordleService.getGameHistory(uid, options);
+        } else {
+          result = { success: false, error: 'Se requiere UID para obtener historial' };
+        }
+        break;
+
+      case 'monthly-stats':
+        if (uid) {
+          const year = req.query.year ? parseInt(req.query.year) : null;
+          const month = req.query.month ? parseInt(req.query.month) : null;
+          result = await wordleService.getMonthlyStats(uid, year, month);
+        } else {
+          result = { success: false, error: 'Se requiere UID para estadísticas mensuales' };
+        }
+        break;
 
       case 'health':
         result = {
@@ -169,8 +197,8 @@ app.all('/api/wordle', async (req, res) => {
           timestamp: new Date().toISOString(),
           version: '2.2.0',
           features: [
-            'Historial de juegos', 
-            'Firebase UID', 
+            'Historial de juegos',
+            'Firebase UID',
             'Alexa fallback',
             'Vinculación por PIN',
             'Gestión de cuentas vinculadas'
@@ -202,6 +230,10 @@ app.all('/api/wordle', async (req, res) => {
             '?action=reset&userId=usuario123',
             '?action=stats&userId=usuario123',
             '',
+            '// Historial',
+            '?action=history&userId=usuario123[&limit=20&offset=0&filter=won]',
+            '?action=monthly-stats&userId=usuario123[&year=2024&month=8]',
+            '',
             '// Vinculación',
             '?action=generate-pin (requiere auth)',
             '?action=validate-pin&pin=1234&alexaUserId=alexa123',
@@ -210,6 +242,7 @@ app.all('/api/wordle', async (req, res) => {
             '?action=cleanup-pins'
           ]
         };
+        break;
     }
   } catch (error) {
     console.error('Error en API:', error);
