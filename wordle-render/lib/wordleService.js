@@ -963,8 +963,8 @@ class WordleService {
       .map(([letter, count]) => ({ letter, count }));
   }
 
-  // Método para obtener estadísticas mensuales
-  async getMonthlyStats(uid, year = null, month = null) {
+  // Método corregido para obtener estadísticas mensuales
+  async getMonthlyStats(uid, year = null, month = null, timezone = 'America/Mexico_City') {
     try {
       const effectiveUid = await this.getEffectiveUid(uid);
       const currentDate = new Date();
@@ -988,7 +988,11 @@ class WordleService {
 
       snapshot.forEach(doc => {
         const game = doc.data();
-        const day = game.completedAt.toDate().getDate();
+
+        // Convertir a la zona horaria del usuario
+        const gameDate = game.completedAt.toDate();
+        const localDate = new Date(gameDate.toLocaleString("en-US", { timeZone: timezone }));
+        const day = localDate.getDate();
 
         if (!dailyStats[day]) {
           dailyStats[day] = { games: 0, wins: 0, attempts: [] };
@@ -1012,7 +1016,7 @@ class WordleService {
         month: targetMonth,
         totalGames,
         totalWins,
-        winRate: totalGames > 0 ? Math.round((totalWins / totalGames) * 100) : 0,
+        winRate: totalGames > 0 ? Math.round((totalWins / totalWins) * 100) : 0,
         dailyStats,
         monthName: new Date(targetYear, targetMonth - 1).toLocaleString('es', { month: 'long' })
       };
